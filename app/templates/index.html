@@ -63,6 +63,7 @@
       <thead class="bg-slate-100 text-slate-600 text-left">
         <tr>
           <th class="px-4 py-2">Customer</th>
+          <th class="px-4 py-2">Contact</th>
           <th class="px-4 py-2">Contract</th>
           <th class="px-4 py-2">Makler</th>
           <th class="px-4 py-2">Status</th>
@@ -179,6 +180,7 @@ function renderContracts() {
   body.innerHTML = allContracts.map(c => `
     <tr class="${urgencyClass(c.days_left)} border-b border-slate-100">
       <td class="px-4 py-2">${c.kunde_name || "—"}</td>
+      <td class="px-4 py-2 text-xs text-slate-500">${c.kunde_email || "—"}${c.kunde_phone ? "<br>" + c.kunde_phone : ""}</td>
       <td class="px-4 py-2 font-mono text-xs">${c.vertragsnummer}</td>
       <td class="px-4 py-2">${c.makler || "—"}</td>
       <td class="px-4 py-2">${c.status || "—"}</td>
@@ -191,7 +193,9 @@ function renderContracts() {
       <td class="px-4 py-2 text-right">
         ${c.follow_up_created
           ? ""
-          : `<button onclick="createFollowup('${c.id}', this)" class="text-xs bg-slate-900 text-white px-3 py-1.5 rounded hover:bg-slate-800">Create follow-up</button>`}
+          : c.eligible_for_followup
+            ? `<button onclick="createFollowup('${c.id}', this)" class="text-xs bg-slate-900 text-white px-3 py-1.5 rounded hover:bg-slate-800">Create follow-up</button>`
+            : '<span class="text-xs text-slate-400">Not eligible</span>'}
       </td>
     </tr>
   `).join("");
@@ -286,6 +290,16 @@ document.getElementById("confirmImportBtn").addEventListener("click", async () =
     <div>✓ ${data.created_contacts} customers created (${data.reused_contacts} already existed)</div>
     <div>✓ ${data.created_contracts} contracts created (${data.reused_contracts} already existed)</div>
     ${data.failed.length > 0 ? `<div class="text-red-600">✗ ${data.failed.length} failed — see console log</div>` : ""}
+    ${data.issues.length > 0 ? `
+      <div class="mt-3 font-medium">Skipped / flagged rows:</div>
+      <div class="max-h-48 overflow-y-auto text-xs space-y-1 border border-slate-200 rounded p-2">
+        ${data.issues.map(i => `
+          <div class="${i.severity === 'reject' ? 'text-red-600' : 'text-orange-600'}">
+            [${i.severity.toUpperCase()}] ${i.row_ref}: ${i.message}
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
   `;
   if (data.failed.length > 0) console.log("Import failures:", data.failed);
 

@@ -118,6 +118,15 @@ def list_contracts(makler: str | None = None, expiry_window: int | None = None):
     result = zoho_get("/crm/v2/Contracts", params=params)
     records = result.get("data") or []
 
+    # Batch-fetch contact details (email/phone) in ONE call, not one per contract -
+    # the brief requires contact details visible in the console, and this keeps
+    # the console load to 2 API calls total regardless of contract count.
+    contacts_result = zoho_get("/crm/v2/Contacts", params={"fields": "Email,Phone", "per_page": 200})
+    contact_details = {
+        c["id"]: {"email": c.get("Email"), "phone": c.get("Phone")}
+        for c in (contacts_result.get("data") or [])
+    }
+
     out = []
     for r in records:
         contract_makler = r.get("Makler")
@@ -132,6 +141,13 @@ def list_contracts(makler: str | None = None, expiry_window: int | None = None):
                 continue
 
         kunde = r.get("Kunde") or {}
+        details = contact_details.get(kunde.get("id"), {})
+        eligible_for_followup = (
+            (contract_makler is not None)
+            and (r.get("Status") or "").strip().lower() == "aktiv"
+            and days_left is not None
+            and days_left >= 0
+        )
         out.append({
             "id": r["id"],
             "vertragsnummer": r.get("Name"),
@@ -142,8 +158,11 @@ def list_contracts(makler: str | None = None, expiry_window: int | None = None):
             "status": r.get("Status"),
             "makler": contract_makler,
             "follow_up_created": r.get("Follow_Up_Created", False),
+            "eligible_for_followup": eligible_for_followup,
             "kunde_id": kunde.get("id"),
             "kunde_name": kunde.get("name"),
+            "kunde_email": details.get("email"),
+            "kunde_phone": details.get("phone"),
         })
 
     out.sort(key=lambda c: (c["days_left"] if c["days_left"] is not None else 999999))
@@ -171,6 +190,14 @@ def create_followup(contract_id: str):
     }
     if not contract["ablaufdatum"]:
         raise HTTPException(400, "contract has no Ablaufdatum, cannot compute due date")
+
+    status = (r.get("Status") or "").strip().lower()
+    if status != "aktiv":
+        raise HTTPException(400, f"contract status is {r.get('Status')!r}, not Aktiv - refusing to create a renewal follow-up")
+
+    days_left = _days_until(contract["ablaufdatum"])
+    if days_left is not None and days_left < 0:
+        raise HTTPException(400, "contract already expired - refusing to create a follow-up with a due date in the past")
 
     customer_display_name = kunde.get("name") or "(unknown customer)"
 
