@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Brandovise Contract Console</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; }
+  .urgency-red { background-color: #fef2f2; border-left: 4px solid #dc2626; }
+  .urgency-orange { background-color: #fff7ed; border-left: 4px solid #ea580c; }
+  .urgency-green { border-left: 4px solid #16a34a; }
+  .urgency-none { border-left: 4px solid #d1d5db; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+<header class="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+  <h1 class="text-lg font-semibold tracking-tight">Brandovise Contract Console</h1>
+  <button id="openImportBtn" class="bg-white text-slate-900 px-4 py-2 rounded text-sm font-medium hover:bg-slate-100">
+    Import CSV
+  </button>
+</header>
+
+<main class="max-w-6xl mx-auto p-6 space-y-6">
+
+  <section class="grid grid-cols-3 gap-4">
+    <div class="bg-white rounded border border-slate-200 p-4">
+      <div class="text-2xl font-semibold" id="statTotal">–</div>
+      <div class="text-sm text-slate-500">Total contracts</div>
+    </div>
+    <div class="bg-white rounded border border-slate-200 p-4">
+      <div class="text-2xl font-semibold text-red-600" id="statUrgent">–</div>
+      <div class="text-sm text-slate-500">Expiring &lt; 30 days</div>
+    </div>
+    <div class="bg-white rounded border border-slate-200 p-4">
+      <div class="text-2xl font-semibold text-orange-500" id="statSoon">–</div>
+      <div class="text-sm text-slate-500">Expiring &lt; 90 days</div>
+    </div>
+  </section>
+
+  <section class="bg-white rounded border border-slate-200 p-4 flex flex-wrap gap-4 items-center">
+    <div>
+      <label class="text-sm text-slate-600 block mb-1">Makler</label>
+      <select id="filterMakler" class="border border-slate-300 rounded px-3 py-1.5 text-sm">
+        <option value="">All</option>
+      </select>
+    </div>
+    <div>
+      <label class="text-sm text-slate-600 block mb-1">Expiry window</label>
+      <select id="filterExpiry" class="border border-slate-300 rounded px-3 py-1.5 text-sm">
+        <option value="">All</option>
+        <option value="30">Next 30 days</option>
+        <option value="90">Next 90 days</option>
+        <option value="180">Next 180 days</option>
+      </select>
+    </div>
+    <button id="refreshBtn" class="ml-auto text-sm text-slate-600 hover:text-slate-900 underline">Refresh</button>
+  </section>
+
+  <section class="bg-white rounded border border-slate-200 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-100 text-slate-600 text-left">
+        <tr>
+          <th class="px-4 py-2">Customer</th>
+          <th class="px-4 py-2">Contract</th>
+          <th class="px-4 py-2">Makler</th>
+          <th class="px-4 py-2">Status</th>
+          <th class="px-4 py-2">Expiry</th>
+          <th class="px-4 py-2">Follow-up</th>
+          <th class="px-4 py-2"></th>
+        </tr>
+      </thead>
+      <tbody id="contractsBody"></tbody>
+    </table>
+    <div id="emptyState" class="p-8 text-center text-slate-400 hidden">No contracts match these filters.</div>
+  </section>
+
+</main>
+
+<!-- Import modal -->
+<div id="importModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 space-y-4">
+    <div class="flex justify-between items-center">
+      <h2 class="font-semibold text-lg">Import data</h2>
+      <button id="closeImportBtn" class="text-slate-400 hover:text-slate-600">✕</button>
+    </div>
+
+    <div id="importStep1">
+      <div class="space-y-3">
+        <div>
+          <label class="text-sm text-slate-600 block mb-1">kontakte_export.csv</label>
+          <input type="file" id="contactsFile" accept=".csv" class="text-sm w-full" />
+        </div>
+        <div>
+          <label class="text-sm text-slate-600 block mb-1">vertraege_export.csv</label>
+          <input type="file" id="contractsFile" accept=".csv" class="text-sm w-full" />
+        </div>
+      </div>
+      <button id="previewBtn" class="mt-4 bg-slate-900 text-white px-4 py-2 rounded text-sm w-full hover:bg-slate-800">
+        Preview import
+      </button>
+    </div>
+
+    <div id="importStep2" class="hidden space-y-3">
+      <div class="text-sm">
+        <span id="previewCounts" class="font-medium"></span>
+      </div>
+      <div id="previewIssues" class="max-h-64 overflow-y-auto text-xs space-y-1 border border-slate-200 rounded p-2"></div>
+      <div class="flex gap-2">
+        <button id="cancelImportBtn" class="flex-1 border border-slate-300 rounded px-4 py-2 text-sm hover:bg-slate-50">Cancel</button>
+        <button id="confirmImportBtn" class="flex-1 bg-slate-900 text-white rounded px-4 py-2 text-sm hover:bg-slate-800">Confirm import</button>
+      </div>
+    </div>
+
+    <div id="importStep3" class="hidden space-y-3">
+      <div id="resultSummary" class="text-sm space-y-1"></div>
+      <button id="doneImportBtn" class="w-full bg-slate-900 text-white rounded px-4 py-2 text-sm hover:bg-slate-800">Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let allContracts = [];
+
+function urgencyClass(days) {
+  if (days === null || days === undefined) return "urgency-none";
+  if (days < 0) return "urgency-none";
+  if (days <= 30) return "urgency-red";
+  if (days <= 90) return "urgency-orange";
+  return "urgency-green";
+}
+
+function daysLabel(days) {
+  if (days === null || days === undefined) return "—";
+  if (days < 0) return `expired ${Math.abs(days)}d ago`;
+  return `${days} days`;
+}
+
+async function loadContracts() {
+  const makler = document.getElementById("filterMakler").value;
+  const expiry = document.getElementById("filterExpiry").value;
+  const params = new URLSearchParams();
+  if (makler) params.set("makler", makler);
+  if (expiry) params.set("expiry_window", expiry);
+
+  const res = await fetch(`/contracts?${params.toString()}`);
+  const data = await res.json();
+  allContracts = data.contracts;
+  renderContracts();
+  renderStats();
+  populateMaklerFilter();
+}
+
+function renderStats() {
+  document.getElementById("statTotal").textContent = allContracts.length;
+  document.getElementById("statUrgent").textContent = allContracts.filter(c => c.days_left !== null && c.days_left >= 0 && c.days_left <= 30).length;
+  document.getElementById("statSoon").textContent = allContracts.filter(c => c.days_left !== null && c.days_left >= 0 && c.days_left <= 90).length;
+}
+
+function populateMaklerFilter() {
+  const select = document.getElementById("filterMakler");
+  const current = select.value;
+  const maklers = [...new Set(allContracts.map(c => c.makler).filter(Boolean))].sort();
+  select.innerHTML = '<option value="">All</option>' + maklers.map(m => `<option value="${m}">${m}</option>`).join("");
+  select.value = current;
+}
+
+function renderContracts() {
+  const body = document.getElementById("contractsBody");
+  const empty = document.getElementById("emptyState");
+  if (allContracts.length === 0) {
+    body.innerHTML = "";
+    empty.classList.remove("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+
+  body.innerHTML = allContracts.map(c => `
+    <tr class="${urgencyClass(c.days_left)} border-b border-slate-100">
+      <td class="px-4 py-2">${c.kunde_name || "—"}</td>
+      <td class="px-4 py-2 font-mono text-xs">${c.vertragsnummer}</td>
+      <td class="px-4 py-2">${c.makler || "—"}</td>
+      <td class="px-4 py-2">${c.status || "—"}</td>
+      <td class="px-4 py-2">${c.ablaufdatum || "—"} <span class="text-slate-400">(${daysLabel(c.days_left)})</span></td>
+      <td class="px-4 py-2">
+        ${c.follow_up_created
+          ? '<span class="text-green-600">✓ Created</span>'
+          : '<span class="text-slate-400">—</span>'}
+      </td>
+      <td class="px-4 py-2 text-right">
+        ${c.follow_up_created
+          ? ""
+          : `<button onclick="createFollowup('${c.id}', this)" class="text-xs bg-slate-900 text-white px-3 py-1.5 rounded hover:bg-slate-800">Create follow-up</button>`}
+      </td>
+    </tr>
+  `).join("");
+}
+
+async function createFollowup(contractId, btn) {
+  btn.disabled = true;
+  btn.textContent = "Creating…";
+  try {
+    const res = await fetch(`/contracts/${contractId}/followup`, { method: "POST" });
+    if (!res.ok) {
+      const err = await res.json();
+      alert("Failed to create follow-up: " + (err.detail || res.statusText));
+      btn.disabled = false;
+      btn.textContent = "Create follow-up";
+      return;
+    }
+    const contract = allContracts.find(c => c.id === contractId);
+    if (contract) contract.follow_up_created = true;
+    renderContracts();
+  } catch (e) {
+    alert("Failed to create follow-up: " + e);
+    btn.disabled = false;
+    btn.textContent = "Create follow-up";
+  }
+}
+
+document.getElementById("filterMakler").addEventListener("change", loadContracts);
+document.getElementById("filterExpiry").addEventListener("change", loadContracts);
+document.getElementById("refreshBtn").addEventListener("click", loadContracts);
+
+// --- Import modal logic ---
+const modal = document.getElementById("importModal");
+function showModal() { modal.classList.remove("hidden"); modal.classList.add("flex"); }
+function hideModal() {
+  modal.classList.add("hidden"); modal.classList.remove("flex");
+  document.getElementById("importStep1").classList.remove("hidden");
+  document.getElementById("importStep2").classList.add("hidden");
+  document.getElementById("importStep3").classList.add("hidden");
+}
+document.getElementById("openImportBtn").addEventListener("click", showModal);
+document.getElementById("closeImportBtn").addEventListener("click", hideModal);
+document.getElementById("cancelImportBtn").addEventListener("click", hideModal);
+document.getElementById("doneImportBtn").addEventListener("click", () => { hideModal(); loadContracts(); });
+
+document.getElementById("previewBtn").addEventListener("click", async () => {
+  const contactsFile = document.getElementById("contactsFile").files[0];
+  const contractsFile = document.getElementById("contractsFile").files[0];
+  if (!contactsFile || !contractsFile) { alert("Please select both CSV files."); return; }
+
+  const fd = new FormData();
+  fd.append("contacts_file", contactsFile);
+  fd.append("contracts_file", contractsFile);
+
+  const res = await fetch("/import/preview", { method: "POST", body: fd });
+  const data = await res.json();
+
+  document.getElementById("previewCounts").textContent =
+    `${data.contacts_read} customers, ${data.contracts_read} contracts will be processed.`;
+
+  const issuesDiv = document.getElementById("previewIssues");
+  if (data.issues.length === 0) {
+    issuesDiv.innerHTML = '<div class="text-green-600">No issues found.</div>';
+  } else {
+    issuesDiv.innerHTML = data.issues.map(i => `
+      <div class="${i.severity === 'reject' ? 'text-red-600' : 'text-orange-600'}">
+        [${i.severity.toUpperCase()}] ${i.row_ref}: ${i.message}
+      </div>
+    `).join("");
+  }
+
+  document.getElementById("importStep1").classList.add("hidden");
+  document.getElementById("importStep2").classList.remove("hidden");
+});
+
+document.getElementById("confirmImportBtn").addEventListener("click", async () => {
+  const contactsFile = document.getElementById("contactsFile").files[0];
+  const contractsFile = document.getElementById("contractsFile").files[0];
+
+  const fd = new FormData();
+  fd.append("contacts_file", contactsFile);
+  fd.append("contracts_file", contractsFile);
+
+  const btn = document.getElementById("confirmImportBtn");
+  btn.disabled = true;
+  btn.textContent = "Importing…";
+
+  const res = await fetch("/import/confirm", { method: "POST", body: fd });
+  const data = await res.json();
+
+  document.getElementById("resultSummary").innerHTML = `
+    <div>✓ ${data.created_contacts} customers created (${data.reused_contacts} already existed)</div>
+    <div>✓ ${data.created_contracts} contracts created (${data.reused_contracts} already existed)</div>
+    ${data.failed.length > 0 ? `<div class="text-red-600">✗ ${data.failed.length} failed — see console log</div>` : ""}
+  `;
+  if (data.failed.length > 0) console.log("Import failures:", data.failed);
+
+  document.getElementById("importStep2").classList.add("hidden");
+  document.getElementById("importStep3").classList.remove("hidden");
+  btn.disabled = false;
+  btn.textContent = "Confirm import";
+});
+
+loadContracts();
+</script>
+
+</body>
+</html>

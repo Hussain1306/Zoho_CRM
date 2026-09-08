@@ -1,0 +1,6 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+kontakte_export.csv
+vertraege_export.csv
